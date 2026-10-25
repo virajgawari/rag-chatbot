@@ -1,0 +1,74 @@
+# Render Blueprint: DocChat FastAPI backend.
+#
+# Created from the Render dashboard (New > Blueprint) against this repository.
+# Secret values are marked `sync: false` and are entered once in the dashboard;
+# they are never stored in this file.
+services:
+  - type: web
+    name: docchat-api
+    runtime: docker
+    region: singapore
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    # Migrations are idempotent and already tracked; this is a safe no-op on
+    # an up-to-date database and applies pending versions on a fresh one.
+    preDeployCommand: python scripts/migrate.py
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+
+      # --- Secrets: enter these once in the Render dashboard ---
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # --- Model and retrieval ---
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_TIMEOUT_SECONDS
+        value: "30"
+      - key: EMBEDDING_MODEL_NAME
+        value: sentence-transformers/all-MiniLM-L6-v2
+      - key: EMBEDDING_DIMENSION
+        value: "384"
+      # Small batches keep the free instance (512 MB) under its memory cap.
+      - key: EMBEDDING_BATCH_SIZE
+        value: "1"
+      - key: EMBEDDING_TIMEOUT_SECONDS
+        value: "120"
+      - key: DEFAULT_CHUNK_SIZE
+        value: "1000"
+      - key: DEFAULT_CHUNK_OVERLAP
+        value: "200"
+      - key: SIMILARITY_THRESHOLD
+        value: "0.2"
+      - key: DEFAULT_TOP_K
+        value: "5"
+
+      # --- Limits ---
+      - key: MAX_UPLOAD_SIZE_BYTES
+        value: "20971520"
+      - key: ALLOWED_EXTENSIONS
+        value: .pdf,.docx,.txt
+
+      # --- Supabase storage bucket name (URL/key are secrets above) ---
+      - key: SUPABASE_STORAGE_BUCKET
+        value: documents
+      - key: DATABASE_POOL_MIN_SIZE
+        value: "1"
+      - key: DATABASE_POOL_MAX_SIZE
+        value: "4"
+      - key: DATABASE_STATEMENT_CACHE_SIZE
+        value: "0"
+
+      # --- CORS: exact production origin of the Vercel frontend ---
+      - key: CORS_ORIGINS
+        value: https://docchat-frontend-two.vercel.app
