@@ -1,0 +1,6 @@
+-r requirements.txt
+
+# Tests
+pytest>=8,<10
+anyio>=4,<5
+reportlab>=4,<5  # generates the multi-page PDF fixture

@@ -1,0 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { @apply border-line; }
+  html, body, #root { min-height: 100%; }
+  body { @apply m-0 bg-white font-[Inter] text-[15px] text-ink antialiased; }
+  button, input, textarea { font: inherit; }
+  button, a, input, textarea { @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2; }
+}
+
+.markdown > *:first-child { margin-top: 0; }
+.markdown > *:last-child { margin-bottom: 0; }
+.markdown p { margin: 0 0 0.85rem; }
+.markdown ul, .markdown ol { margin: 0 0 0.85rem; padding-left: 1.25rem; }
+.markdown code { border-radius: 4px; background: #F3F4F6; padding: 0.1rem 0.25rem; font-size: 0.85em; }
+.blink-cursor::after { content: ""; display: inline-block; width: 2px; height: 1em; margin-left: 3px; vertical-align: -2px; background: #4F46E5; animation: blink 1s step-end infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.dot { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 60%, 100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }

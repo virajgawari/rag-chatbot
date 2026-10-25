@@ -1,0 +1,1 @@
+export function UserMessage({ content }: { content: string }) { return <div className="ml-auto max-w-[80%] whitespace-pre-wrap rounded-2xl bg-tint px-4 py-3 leading-6 text-[#1E1B4B]">{content}</div>; }
