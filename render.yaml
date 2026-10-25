@@ -13,9 +13,9 @@ services:
     dockerContext: .
     healthCheckPath: /health
     autoDeployTrigger: commit
-    # Migrations are idempotent and already tracked; this is a safe no-op on
-    # an up-to-date database and applies pending versions on a fresh one.
-    preDeployCommand: python scripts/migrate.py
+    # Note: pre-deploy commands are not supported on the free plan. Migrations
+    # are idempotent; apply them from a local checkout with:
+    #   python scripts/migrate.py
     envVars:
       - key: ENVIRONMENT
         value: production
