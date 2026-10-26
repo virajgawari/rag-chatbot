@@ -7,6 +7,7 @@ services:
   - type: web
     name: docchat-api
     runtime: docker
+    branch: clean-main
     region: singapore
     plan: free
     dockerfilePath: ./backend/Dockerfile
@@ -39,7 +40,7 @@ services:
         value: sentence-transformers/all-MiniLM-L6-v2
       - key: EMBEDDING_DIMENSION
         value: "384"
-      # Small batches keep the free instance (512 MB) under its memory cap.
+      # Reduce peak memory; the 512 MB instance can still be too small for PyTorch.
       - key: EMBEDDING_BATCH_SIZE
         value: "1"
       - key: EMBEDDING_TIMEOUT_SECONDS

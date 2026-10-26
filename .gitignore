@@ -35,8 +35,8 @@ share/python-wheels/
 .coverage
 htmlcov/
 
-# Runtime data
-storage/
+# Runtime data (do not ignore the backend/storage Python package)
+/storage/
 *.log
 
 # Frontend

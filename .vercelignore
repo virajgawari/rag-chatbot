@@ -1,0 +1,16 @@
+# Never upload local credentials or runtime/private data with Vercel CLI.
+.env
+.env.*
+**/.env
+**/.env.*
+.git
+.freebuff
+.opencode
+.venv
+venv
+storage
+**/__pycache__
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+**/*.log
