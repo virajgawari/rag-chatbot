@@ -45,4 +45,5 @@ async def health_check(request: Request, response: Response) -> HealthResponse:
         database_backend=database_backend,
         storage_backend=storage_backend,
         groq_configured=bool(settings.GROQ_API_KEY),
+        embedding_backend=getattr(app_state.embeddings, "backend", settings.EMBEDDING_BACKEND),
     )

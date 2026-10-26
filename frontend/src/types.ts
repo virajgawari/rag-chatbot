@@ -12,6 +12,9 @@ export type DocumentItem = {
   status: DocumentStatus;
   progressPercentage?: number;
   totalChunks?: number;
+  chunksProcessed?: number;
+  elapsedSeconds?: number | null;
+  estimatedRemainingSeconds?: number | null;
   errorMessage?: string | null;
 };
 
@@ -54,6 +57,8 @@ export type DocumentStatusResponse = {
   totalChunks: number;
   chunksProcessed: number;
   errorMessage: string | null;
+  elapsedSeconds?: number | null;
+  estimatedRemainingSeconds?: number | null;
 };
 
 export type ChatStreamEvent =

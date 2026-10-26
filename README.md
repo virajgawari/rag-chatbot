@@ -37,7 +37,7 @@ FastAPI (backend/) ───────────────► Groq (genera
         │
         ├── Supabase Postgres + pgvector (documents, chunks, embeddings)
         ├── Supabase Storage (private originals)
-        └── sentence-transformers/all-MiniLM-L6-v2 (384-d, local)
+         └── MiniLM-L6-v2 via quantized ONNX (384-d, local CPU)
 ```
 
 Business logic lives in `backend/services/`; HTTP routes live in
@@ -198,7 +198,11 @@ npm run build
 ## Embeddings
 
 Indexing and querying both use
-`sentence-transformers/all-MiniLM-L6-v2` (384 dimensions). Each document records
+`sentence-transformers/all-MiniLM-L6-v2` (384 dimensions), using a pinned INT8
+ONNX model, the original 256-token limit, and masked mean pooling. The default
+runtime does not load PyTorch. Small batches (4), one CPU inference thread, and
+serialized ingestion bound memory on Render Free; progress writes are throttled
+to every 3 seconds, with a final update always persisted. Each document records
 its embedding model and dimension; chat returns `409 embedding_model_mismatch`
 rather than mixing incompatible vectors. Re-embedding and dimension-change
 procedures are documented in
@@ -210,8 +214,8 @@ procedures are documented in
   `dist`. Set `VITE_API_BASE_URL` to the deployed backend URL including
   `/api/v1`.
 - **Backend:** the FastAPI service must run as a container (or another
-  long-lived Python host) because it bundles PyTorch and the MiniLM model. Use
-  `backend/Dockerfile`; Vercel serverless functions are too small for this image.
+  long-lived Python host) for local ONNX inference and in-process indexing. Use
+  `backend/Dockerfile`; deploying this backend as Vercel functions is not supported.
 - Add the Vercel origin to `CORS_ORIGINS` on the backend.
 
 Full instructions, environment variables, post-deploy checks, and rollback are

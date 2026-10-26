@@ -4,11 +4,13 @@ export function FileProgressRow({
   name,
   progress,
   status = "Indexing document…",
+  details,
   onCancel,
 }: {
   name: string;
   progress: number;
   status?: string;
+  details?: string;
   onCancel: () => void;
 }) {
   return (
@@ -29,6 +31,7 @@ export function FileProgressRow({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress}
+          aria-valuetext={[status, details].filter(Boolean).join(". ")}
           className="mt-2 h-1 overflow-hidden rounded-full bg-[#E5E7EB]"
         >
           <div
@@ -36,6 +39,7 @@ export function FileProgressRow({
             style={{ width: `${progress}%` }}
           />
         </div>
+        {details && <p className="mb-0 mt-2 text-left text-xs leading-5 text-muted">{details}</p>}
       </div>
       <button
         type="button"

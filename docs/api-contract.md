@@ -78,7 +78,8 @@ internal paths.
   "embedding_dimension": 384,
   "database_backend": "supabase_pgvector",
   "storage_backend": "supabase_storage",
-  "groq_configured": true
+  "groq_configured": true,
+  "embedding_backend": "onnx"
 }
 ```
 
@@ -130,6 +131,8 @@ binary `.txt`) is rejected.
   "total_pages": 12,
   "total_chunks": 140,
   "chunks_processed": 112,
+  "elapsed_seconds": 90.5,
+  "estimated_remaining_seconds": 22.6,
   "error_message": null,
   "created_at": "2026-10-26T00:16:48.123456+00:00"
 }
@@ -138,6 +141,13 @@ binary `.txt`) is rejected.
 Statuses: `queued` → `parsing` → `chunking` → `embedding` → `ready`, or
 `failed`. `progress_percentage` is monotonic for a run. Failures store a
 generic, client-safe `error_message`; details are logged server-side.
+
+Timing fields are additive and nullable. `elapsed_seconds` includes queue time.
+The remaining-time estimate is available only while this worker is embedding,
+after at least 4 chunks have been persisted; it is not a completion guarantee.
+Progress writes occur about every 3 seconds (or after the last batch), not on
+every chunk. The frontend keeps polling large documents instead of reporting a
+false failure after ten minutes. A restart can still interrupt background work.
 
 ## 7. List
 
@@ -161,6 +171,9 @@ Returns an array, newest first:
 
 This is a global operational listing (see the auth note). It is intentionally
 not a search endpoint and never includes chunks or vectors.
+Each item also includes `progress_percentage`, `chunks_processed`,
+`elapsed_seconds`, and `estimated_remaining_seconds` so indexing remains visible
+after refreshing or switching documents.
 
 ## 8. Delete
 

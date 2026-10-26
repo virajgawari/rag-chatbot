@@ -37,7 +37,7 @@ flowchart TD
     end
 
     subgraph InferenceLayer["External Inference Engines"]
-        Embedder["Sentence-Transformers (MiniLM-L6-v2)"]
+        Embedder["Quantized ONNX (MiniLM-L6-v2, local CPU)"]
         Groq["Groq Cloud API (openai/gpt-oss-120b)"]
     end
 
@@ -93,7 +93,7 @@ flowchart TD
   - Hierarchical indexing using HNSW (`m=16`, `ef_construction=64`) for sub-100ms vector search.
 
 ### 2.4 External Inference
-- **Embeddings:** `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions) for high-efficiency semantic search.
+- **Embeddings:** `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions), pinned INT8 ONNX inference with original tokenization and mean pooling; no PyTorch at runtime.
 - **LLM Generation:** Groq Cloud API using `openai/gpt-oss-120b` by default (set `GROQ_MODEL` to a model enabled for the key), temperature `0.0`, for deterministic, sub-second grounded responses.
 
 ---
@@ -130,7 +130,7 @@ sequenceDiagram
         API->>DB: Batch INSERT INTO document_chunks (document_id, page_number, content, embedding)
         API->>DB: UPDATE documents SET status='ready', total_chunks=N
     and Polling / Progress Updates
-        loop Every 500ms
+        loop Every 1.5 seconds
             Frontend->>API: GET /api/v1/documents/{id}/status
             API->>DB: Query current document status
             DB-->>API: status, progress_percentage, total_chunks
@@ -320,7 +320,7 @@ WITH (m = 16, ef_construction = 64);
 | `SUPABASE_URL` | Yes | Backend | Supabase Project REST/Postgres URL | Server configuration |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Backend | Supabase elevated admin key for storage and DB inserts | Server-only critical secret |
 | `DATABASE_URL` | Yes | Backend | Direct PostgreSQL connection string (pooler) | Server-only secret |
-| `EMBEDDING_MODEL_NAME` | No | Backend | Local or hosted HF embedding model | Server configuration |
+| `EMBEDDING_MODEL_NAME` | No | Backend | Verified MiniLM ONNX model; other models need a compatible adapter | Server configuration |
 | `SIMILARITY_THRESHOLD` | No | Backend | Min cosine similarity for grounding (Default: `0.2`) | Server configuration |
 | `VITE_API_BASE_URL` | Yes | Frontend | Base URL pointing to deployed FastAPI instance | Public client-side configuration |
 

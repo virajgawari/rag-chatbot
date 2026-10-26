@@ -3,7 +3,9 @@ import asyncio
 import logging
 import math
 import tempfile
+import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -47,6 +49,8 @@ class DocumentService:
         self.embedding_model_name = embedding_model_name
         self.embedding_dimension = embedding_dimension
         self._ingest_locks: Dict[str, asyncio.Lock] = {}
+        self._ingestion_slot = asyncio.Semaphore(1)
+        self._embedding_started: Dict[str, float] = {}
 
     # ------------------------------------------------------------------
     # Upload
@@ -142,7 +146,8 @@ class DocumentService:
             if not doc:
                 logger.error("Cannot process document %s: record not found", document_id)
                 return
-            await self._ingest(doc)
+            async with self._ingestion_slot:
+                await self._ingest(doc)
 
     async def reindex_document(self, document_id: str) -> Dict[str, Any]:
         """Re-parse, re-chunk and re-embed an already-stored document.
@@ -154,7 +159,8 @@ class DocumentService:
             doc = await self.repository.get_document(document_id)
             if not doc:
                 raise DocumentNotFoundError(f"Document '{document_id}' not found.")
-            await self._ingest(doc)
+            async with self._ingestion_slot:
+                await self._ingest(doc)
             updated = await self.repository.get_document(document_id)
             return {
                 "document_id": document_id,
@@ -168,6 +174,7 @@ class DocumentService:
         document_id = str(doc["id"])
         stage = "initialization"
         temp_path: Optional[Path] = None
+        started = time.monotonic()
 
         try:
             await self.repository.update_status(
@@ -182,6 +189,7 @@ class DocumentService:
             ) as handle:
                 handle.write(raw_bytes)
                 temp_path = Path(handle.name)
+            del raw_bytes
 
             pages = await asyncio.to_thread(extract_raw_pages, temp_path)
             if not pages:
@@ -225,6 +233,7 @@ class DocumentService:
 
             if not chunks:
                 raise ValueError("text splitting produced no chunks")
+            del pages
 
             stage = "embedding"
             await self.repository.update_status(
@@ -238,6 +247,8 @@ class DocumentService:
             embeddings: List[List[float]] = []
             batch_size = max(1, settings.EMBEDDING_BATCH_SIZE)
             total_batches = math.ceil(len(chunks) / batch_size)
+            self._embedding_started[document_id] = time.monotonic()
+            last_progress_write = time.monotonic()
 
             for batch_number in range(total_batches):
                 batch = chunks[batch_number * batch_size : (batch_number + 1) * batch_size]
@@ -249,6 +260,8 @@ class DocumentService:
                         )
                 except TimeoutError:
                     raise ValueError("embedding batch timed out") from None
+                if len(vectors) != len(batch):
+                    raise ValueError("embedding model returned an incorrect number of vectors")
                 for vector in vectors:
                     if len(vector) != self.embedding_dimension:
                         raise ValueError(
@@ -258,12 +271,15 @@ class DocumentService:
                 embeddings.extend(vectors)
                 processed = len(embeddings)
                 progress = 50 + int(45 * processed / len(chunks))
-                await self.repository.update_status(
-                    document_id,
-                    status="embedding",
-                    progress_percentage=min(progress, 95),
-                    chunks_processed=processed,
-                )
+                now = time.monotonic()
+                if processed == len(chunks) or now - last_progress_write >= settings.INDEXING_PROGRESS_INTERVAL_SECONDS:
+                    await self.repository.update_status(
+                        document_id,
+                        status="embedding",
+                        progress_percentage=min(progress, 95),
+                        chunks_processed=processed,
+                    )
+                    last_progress_write = now
 
             stage = "storing"
             await self.repository.insert_chunks(
@@ -281,10 +297,11 @@ class DocumentService:
                 error_message=None,
             )
             logger.info(
-                "Indexed document %s (%s chunks, model=%s)",
+                "Indexed document %s (%s chunks, model=%s, elapsed=%.2fs)",
                 document_id,
                 len(chunks),
                 self.embedding_model_name,
+                time.monotonic() - started,
             )
 
         except Exception as exc:  # noqa: BLE001 - persisted as a client-safe status
@@ -295,6 +312,7 @@ class DocumentService:
                 error_message=_SAFE_PIPELINE_ERROR.format(stage=stage),
             )
         finally:
+            self._embedding_started.pop(document_id, None)
             if temp_path is not None and temp_path.exists():
                 try:
                     temp_path.unlink()
@@ -304,6 +322,18 @@ class DocumentService:
     # ------------------------------------------------------------------
     # Read models
     # ------------------------------------------------------------------
+
+    def _timing_fields(self, doc: Dict[str, Any]) -> Dict[str, Optional[float]]:
+        elapsed = None
+        remaining = None
+        if doc["status"] not in {"ready", "failed"}:
+            elapsed = max(0.0, (datetime.now(timezone.utc) - doc["created_at"]).total_seconds())
+        started = self._embedding_started.get(str(doc["id"]))
+        processed = doc.get("chunks_processed", 0)
+        total = doc.get("total_chunks", 0)
+        if doc["status"] == "embedding" and started is not None and processed >= 4 and total > processed:
+            remaining = max(0.0, (time.monotonic() - started) * (total - processed) / processed)
+        return {"elapsed_seconds": elapsed, "estimated_remaining_seconds": remaining}
 
     async def get_document_status(self, document_id: str) -> DocumentStatusResponse:
         doc = await self.repository.get_document(document_id)
@@ -320,6 +350,7 @@ class DocumentService:
             chunks_processed=doc.get("chunks_processed", 0),
             error_message=doc.get("error_message"),
             created_at=doc["created_at"],
+            **self._timing_fields(doc),
         )
 
     async def list_documents(self, limit: int = 20, offset: int = 0) -> List[DocumentListItem]:
@@ -332,7 +363,10 @@ class DocumentService:
                 size_bytes=doc["size_bytes"],
                 total_pages=doc.get("total_pages", 0),
                 total_chunks=doc.get("total_chunks", 0),
+                progress_percentage=doc.get("progress_percentage", 0),
+                chunks_processed=doc.get("chunks_processed", 0),
                 created_at=doc["created_at"],
+                **self._timing_fields(doc),
             )
             for doc in docs
         ]

@@ -78,12 +78,20 @@ export async function listDocuments(signal?: AbortSignal): Promise<DocumentItem[
     status: DocumentStatus;
     total_chunks: number;
     total_pages: number;
+    progress_percentage?: number;
+    chunks_processed?: number;
+    elapsed_seconds?: number | null;
+    estimated_remaining_seconds?: number | null;
   }>;
   return items.map((item) => ({
     id: item.document_id,
     name: item.name,
     status: item.status,
     totalChunks: item.total_chunks,
+    progressPercentage: item.progress_percentage,
+    chunksProcessed: item.chunks_processed,
+    elapsedSeconds: item.elapsed_seconds,
+    estimatedRemainingSeconds: item.estimated_remaining_seconds,
   }));
 }
 
@@ -125,6 +133,8 @@ export async function getDocumentStatus(
     totalChunks: payload.total_chunks,
     chunksProcessed: payload.chunks_processed,
     errorMessage: payload.error_message ?? null,
+    elapsedSeconds: payload.elapsed_seconds,
+    estimatedRemainingSeconds: payload.estimated_remaining_seconds,
   };
 }
 

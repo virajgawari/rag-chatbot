@@ -4,7 +4,7 @@ Every credential is read from backend environment variables (or the project
 ``.env`` file). Nothing here is ever sent to the browser.
 """
 from pathlib import Path
-from typing import Annotated, List, Optional, Set
+from typing import Annotated, List, Literal, Optional, Set
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -57,8 +57,13 @@ class Settings(BaseSettings):
     # model requires the documented re-embedding migration.
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDING_DIMENSION: int = 384
-    EMBEDDING_BATCH_SIZE: int = 32
+    EMBEDDING_BACKEND: Literal["onnx", "torch"] = "onnx"
+    EMBEDDING_MODEL_REVISION: str = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
+    EMBEDDING_ONNX_FILE: str = "onnx/model_quint8_avx2.onnx"
+    EMBEDDING_CPU_THREADS: int = 1
+    EMBEDDING_BATCH_SIZE: int = 4
     EMBEDDING_TIMEOUT_SECONDS: float = 120.0
+    INDEXING_PROGRESS_INTERVAL_SECONDS: float = 3.0
     DEFAULT_CHUNK_SIZE: int = 1000
     DEFAULT_CHUNK_OVERLAP: int = 200
     # Documents left mid-pipeline after a restart are marked failed after this long.
@@ -156,7 +161,14 @@ class Settings(BaseSettings):
             raise ValueError("EMBEDDING_DIMENSION must be positive")
         return value
 
-    @field_validator("EMBEDDING_TIMEOUT_SECONDS", "GROQ_TIMEOUT_SECONDS")
+    @field_validator("EMBEDDING_CPU_THREADS", "EMBEDDING_BATCH_SIZE")
+    @classmethod
+    def _positive_count(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("Embedding thread and batch counts must be positive")
+        return value
+
+    @field_validator("EMBEDDING_TIMEOUT_SECONDS", "GROQ_TIMEOUT_SECONDS", "INDEXING_PROGRESS_INTERVAL_SECONDS")
     @classmethod
     def _positive_timeout(cls, value: float) -> float:
         if value <= 0:

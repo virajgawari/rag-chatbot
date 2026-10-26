@@ -40,9 +40,15 @@ services:
         value: sentence-transformers/all-MiniLM-L6-v2
       - key: EMBEDDING_DIMENSION
         value: "384"
-      # Reduce peak memory; the 512 MB instance can still be too small for PyTorch.
-      - key: EMBEDDING_BATCH_SIZE
+      - key: EMBEDDING_BACKEND
+        value: onnx
+      - key: EMBEDDING_CPU_THREADS
         value: "1"
+      # Small ONNX batches keep inference memory bounded on the free instance.
+      - key: EMBEDDING_BATCH_SIZE
+        value: "4"
+      - key: INDEXING_PROGRESS_INTERVAL_SECONDS
+        value: "3"
       - key: EMBEDDING_TIMEOUT_SECONDS
         value: "120"
       - key: DEFAULT_CHUNK_SIZE

@@ -4,6 +4,7 @@ import { FileProgressRow } from "./FileProgressRow";
 import { Brand } from "./Brand";
 import { ApiError, getDocumentStatus, uploadDocument } from "../api";
 import type { DocumentItem } from "../types";
+import { indexingProgress } from "../indexing";
 
 type UploadError = { message: string; retry?: () => void };
 type Props = {
@@ -12,12 +13,13 @@ type Props = {
   notice?: string;
 };
 
-const INDEXING_TIMEOUT_MS = 10 * 60 * 1000;
+const LONG_INDEXING_MS = 10 * 60 * 1000;
 
 export function UploadScreen({ onReady, onBack, notice }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
   const [stageLabel, setStageLabel] = useState("Uploading document…");
+  const [details, setDetails] = useState("");
   const [error, setError] = useState<UploadError | null>(null);
 
   const runId = useRef(0);
@@ -36,6 +38,7 @@ export function UploadScreen({ onReady, onBack, notice }: Props) {
     setFile(picked);
     setProgress(4);
     setStageLabel("Uploading document…");
+    setDetails("");
 
     try {
       const response = await uploadDocument(picked, controller.signal);
@@ -46,17 +49,20 @@ export function UploadScreen({ onReady, onBack, notice }: Props) {
       const startedAt = Date.now();
 
       while (!controller.signal.aborted && run === runId.current) {
-        if (Date.now() - startedAt > INDEXING_TIMEOUT_MS) {
-          throw new ApiError(
-            "Indexing is taking longer than expected. Please try again.",
-            0,
-            "indexing_timeout",
-          );
-        }
-
         const status = await getDocumentStatus(response.documentId, controller.signal);
         if (run !== runId.current) return;
         setProgress(status.progressPercentage);
+        const telemetry = indexingProgress({
+          ...status,
+          elapsedSeconds: status.elapsedSeconds ?? (Date.now() - startedAt) / 1000,
+        });
+        setStageLabel(telemetry.label);
+        setDetails([
+          telemetry.details,
+          Date.now() - startedAt > LONG_INDEXING_MS
+            ? "Large document still processing. You do not need to upload it again."
+            : "",
+        ].filter(Boolean).join(" · "));
 
         if (status.status === "ready") {
           setProgress(100);
@@ -82,7 +88,7 @@ export function UploadScreen({ onReady, onBack, notice }: Props) {
           );
         }
 
-        await new Promise((resolve) => window.setTimeout(resolve, 700));
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
       }
     } catch (caught) {
       if (controller.signal.aborted || run !== runId.current) return;
@@ -152,6 +158,7 @@ export function UploadScreen({ onReady, onBack, notice }: Props) {
             name={file.name}
             progress={progress}
             status={stageLabel}
+            details={details}
             onCancel={cancel}
           />
         )}

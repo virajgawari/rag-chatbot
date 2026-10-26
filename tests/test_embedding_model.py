@@ -1,6 +1,6 @@
 """Verify the real embedding model used by indexing and querying.
 
-Marked slow because it loads sentence-transformers; run with:
+Marked slow because it loads the real ONNX model; run with:
     python -m pytest -m slow tests/test_embedding_model.py
 """
 import math
@@ -18,9 +18,9 @@ def _cosine(left, right) -> float:
 
 
 def test_embedding_model_is_384_dimensional_and_semantic():
-    from langchain_huggingface import HuggingFaceEmbeddings
+    from backend.services.embeddings import create_embeddings
 
-    model = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL_NAME)
+    model = create_embeddings()
     related = model.embed_query("The cat is resting on the mat.")
     paraphrase = model.embed_query("A kitten is sleeping on a rug.")
     unrelated = model.embed_query("Postgres stores documents in pgvector tables.")

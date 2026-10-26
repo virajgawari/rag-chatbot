@@ -1,0 +1,4 @@
+# Optional legacy runtime for rollback / compatibility comparisons, not the image.
+-r requirements.txt
+sentence-transformers>=5.3,<6
+langchain-huggingface>=1.2,<2

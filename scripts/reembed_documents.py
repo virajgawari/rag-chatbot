@@ -67,12 +67,10 @@ async def _run(args) -> int:
     else:
         storage = LocalStorage(base_dir=settings.LOCAL_STORAGE_DIR)
 
-    from langchain_huggingface import HuggingFaceEmbeddings
+    from backend.services.embeddings import create_embeddings
 
     print(f"Loading embedding model '{settings.EMBEDDING_MODEL_NAME}' ...")
-    embeddings = await asyncio.to_thread(
-        HuggingFaceEmbeddings, model_name=settings.EMBEDDING_MODEL_NAME
-    )
+    embeddings = await asyncio.to_thread(create_embeddings)
 
     service = DocumentService(
         repository=repository,

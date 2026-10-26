@@ -5,8 +5,7 @@
 #   docker build -f backend/Dockerfile -t docchat-api .
 #
 # The frontend is deployed separately (for example on Vercel); this image is
-# intended for a container host because sentence-transformers/torch and the
-# MiniLM model exceed serverless bundle limits.
+# intended for a long-lived container host with a baked, quantized ONNX model.
 
 FROM python:3.12-slim
 
@@ -15,12 +14,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PYTHONPATH=/app \
     HF_HOME=/app/.cache/huggingface \
-    TRANSFORMERS_CACHE=/app/.cache/huggingface
+    HF_HUB_DISABLE_XET=1 \
+    TOKENIZERS_PARALLELISM=false \
+    OMP_NUM_THREADS=1 \
+    OPENBLAS_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1
 
 WORKDIR /app
-
-# CPU-only torch keeps the image far smaller than the default CUDA wheels.
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
 COPY backend/requirements.txt backend/requirements.txt
 RUN pip install --no-cache-dir -r backend/requirements.txt
@@ -29,11 +29,12 @@ COPY backend ./backend
 COPY migrations ./migrations
 COPY scripts ./scripts
 
-# Bake the exact embedding model into the image so container starts are fast
-# and the model version is reproducible. Indexing and querying both use it.
+# Bake and validate the pinned INT8 model; neither PyTorch nor transformers is
+# installed. Indexing and querying share the same tokenizer/pooling/runtime.
 ARG EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
 ENV EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}
-RUN python -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.environ['EMBEDDING_MODEL_NAME'])"
+RUN python -c "from backend.services.embeddings import create_embeddings; model = create_embeddings(); assert len(model.embed_query('Build verification')) == 384"
+ENV HF_HUB_OFFLINE=1
 
 EXPOSE 8000
 

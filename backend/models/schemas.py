@@ -18,6 +18,7 @@ class HealthResponse(BaseModel):
     database_backend: str
     storage_backend: str
     groq_configured: bool
+    embedding_backend: str = "unknown"
 
 
 # -----------------------------------------------------------------------------
@@ -45,6 +46,8 @@ class DocumentStatusResponse(BaseModel):
     chunks_processed: int
     error_message: Optional[str] = None
     created_at: datetime
+    elapsed_seconds: Optional[float] = None
+    estimated_remaining_seconds: Optional[float] = None
 
 
 class DocumentListItem(BaseModel):
@@ -55,6 +58,10 @@ class DocumentListItem(BaseModel):
     total_pages: int
     total_chunks: int
     created_at: datetime
+    progress_percentage: int = 0
+    chunks_processed: int = 0
+    elapsed_seconds: Optional[float] = None
+    estimated_remaining_seconds: Optional[float] = None
 
 
 # -----------------------------------------------------------------------------

@@ -179,6 +179,10 @@ with a different model.
 
 ### Same dimension (384) — e.g. another MiniLM variant
 
+The ONNX adapter is deliberately limited to the verified MiniLM model. For
+another model, supply a validated adapter or install `requirements-torch.txt`
+and use `EMBEDDING_BACKEND=torch` in a separately built legacy image.
+
 1. Set `EMBEDDING_MODEL_NAME` in the server environment and restart the API.
 2. Chat against existing documents now fails with `409` (by design).
 3. Preview the work:
@@ -225,9 +229,16 @@ This needs DDL before re-embedding:
   state; on startup the service marks ingestions older than
   `STALE_INGESTION_MINUTES` (default 30) as `failed` so clients stop polling.
   Re-upload to retry. Move to a durable job queue before scaling out.
-- **Each worker loads the embedding model** (~90 MB plus torch). Run one worker
-  for small deployments, or isolate ingestion in its own process before
-  increasing concurrency.
+- **Each worker loads the embedding model.** The default is a ~23 MB quantized
+  ONNX artifact, without PyTorch/Transformers at runtime. It retains MiniLM's
+  256-token truncation and masked mean pooling, with normalized cosine vectors.
+  Use one worker, one inference thread and batches of 4 on small instances.
+  Ingestion is serialized and progress DB writes are throttled to 3 seconds.
+- **Performance rollouts:** benchmark representative PDFs and verify semantic
+  retrieval before switching runtimes. Quantization changes vectors slightly;
+  dimension equality alone is not proof of compatibility. The model name and
+  dimension remain unchanged only for this verified MiniLM conversion. Do not
+  switch to an unrelated embedding model without re-indexing.
 - **Groq model availability varies by key.** If generation returns `502` with
   `model_not_found` in the server log, list models with
   `GET https://api.groq.com/openai/v1/models` and set `GROQ_MODEL` to an
@@ -258,4 +269,4 @@ This needs DDL before re-embedding:
 | Chat `502` / `model_not_found` | `GROQ_MODEL` not enabled for the key; pick an available model. |
 | `prepared statement ... does not exist` on port 6543 | Set `DATABASE_STATEMENT_CACHE_SIZE=0`. |
 | CORS error from a deployed UI | Add its exact origin to `CORS_ORIGINS`; don't use `https://*.vercel.app` as an origin. |
-| First startup is slow | The MiniLM model downloads/loads once per worker. |
+| First startup is slow | Local development downloads the pinned ONNX model once. Docker bakes it at build time and loads offline. |

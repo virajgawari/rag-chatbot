@@ -90,12 +90,10 @@ async def lifespan(app: FastAPI):
         )
         repository = InMemoryRepository()
 
-    from langchain_huggingface import HuggingFaceEmbeddings
+    from backend.services.embeddings import create_embeddings
 
-    logger.info("Loading embedding model '%s'", settings.EMBEDDING_MODEL_NAME)
-    embeddings = await asyncio.to_thread(
-        HuggingFaceEmbeddings, model_name=settings.EMBEDDING_MODEL_NAME
-    )
+    logger.info("Loading embedding model '%s' (%s)", settings.EMBEDDING_MODEL_NAME, settings.EMBEDDING_BACKEND)
+    embeddings = await asyncio.to_thread(create_embeddings)
     if settings.EMBEDDING_DIMENSION != 384:
         logger.warning(
             "EMBEDDING_DIMENSION is %s but migrations declare vector(384); "

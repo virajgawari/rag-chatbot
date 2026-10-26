@@ -7,6 +7,7 @@ import { Sidebar } from "./components/Sidebar";
 import { ChatHeader } from "./components/ChatHeader";
 import { MessageList } from "./components/MessageList";
 import { Composer } from "./components/Composer";
+import { indexingProgress } from "./indexing";
 
 const prompts = [
   "What are the key takeaways?",
@@ -46,7 +47,10 @@ export default function App() {
     // selection on reload.
     if (!initialized.current) {
       initialized.current = true;
-      setActiveId(items.find((item) => item.status === "ready")?.id ?? "");
+      setActiveId(
+        items.find((item) => item.status === "ready")?.id ??
+          items.find((item) => item.status !== "failed")?.id ?? items[0]?.id ?? "",
+      );
       return;
     }
 
@@ -344,6 +348,18 @@ export default function App() {
                     ? "This document could not be indexed. Upload it again to continue."
                     : "This document is still being indexed."}
               </p>
+              {!ready && !failed && (
+                <div role="status" className="mb-5 text-sm text-muted">
+                  <p className="mb-2">{indexingProgress(active).label}</p>
+                  <p>{indexingProgress(active).details}</p>
+                  <progress
+                    className="h-2 w-full accent-accent"
+                    aria-label="Document indexing progress"
+                    value={active.progressPercentage ?? 0}
+                    max={100}
+                  />
+                </div>
+              )}
               {ready && (
                 <div className="flex flex-wrap gap-2">
                   {prompts.map((prompt) => (

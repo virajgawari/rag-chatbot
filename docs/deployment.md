@@ -5,7 +5,7 @@ DocChat has two deployable pieces:
 | Piece | Where | Why |
 | --- | --- | --- |
 | `frontend/` (React + Vite) | **Vercel** | Static SPA; Vercel is a natural fit. |
-| `backend/` (FastAPI) | **Container host** (Render, Railway, Fly.io, ECS, etc.) | It runs `sentence-transformers`, PyTorch, and the MiniLM model locally. That image is far larger than a Vercel serverless function allows, and the model needs a long-lived process. |
+| `backend/` (FastAPI) | **Container host** (for example Render) | It runs quantized MiniLM locally with ONNX Runtime and indexes uploads in an in-process background task. No PyTorch is loaded by the default image. |
 
 The frontend is fully Vercel-ready. The backend is container-ready (see
 `backend/Dockerfile`). Deploying the backend to Vercel is not supported with the
@@ -19,7 +19,7 @@ for this version.
 
 - A Supabase project with Postgres, pgvector enabled, and Storage.
 - A Groq API key.
-- A container host that can run a ~2 GB image and expose HTTP.
+- A container host that can run the Docker image and expose HTTP.
 - A Vercel account.
 - The Supabase **database password** (not the publishable/secret API keys).
   The secret key is used for Storage; asyncpg still needs the Postgres
@@ -93,10 +93,10 @@ re-embedded with `scripts/reembed_documents.py`).
 
 The image:
 
-- uses CPU-only PyTorch;
+- uses CPU-only ONNX Runtime, not PyTorch;
 - installs `backend/requirements.txt`;
-- bakes `sentence-transformers/all-MiniLM-L6-v2` into the image at
-  `/app/.cache/huggingface`;
+- bakes the pinned `all-MiniLM-L6-v2` INT8 ONNX artifact (~23 MB) and tokenizer
+  into `/app/.cache/huggingface`, validates inference, then enables offline loading;
 - runs one Uvicorn worker (each worker loads its own model);
 - has a `/health` healthcheck.
 
@@ -114,8 +114,8 @@ On a container host:
    `backend/Dockerfile`, repository root as build context.
 2. Set the backend environment variables (see section 5).
 3. Set the health check path to `/health`.
-4. Run migrations once as a release/pre-deploy command:
-   `python scripts/migrate.py`.
+4. Run migrations once: `python scripts/migrate.py`. On Render Free, run this
+   locally; pre-deploy commands are not supported.
 5. Set the public backend URL, for example `https://docchat-api.onrender.com`.
 
 Run exactly one worker per instance for this deployment size. To scale, add
@@ -181,6 +181,12 @@ Backend:
 | `CORS_ORIGIN_REGEX` | no | Optional regex for Vercel previews. |
 | `EMBEDDING_MODEL_NAME` | no | Do not change without re-embedding. |
 | `EMBEDDING_DIMENSION` | no | `384`; changing it requires a dimension migration and full re-embedding. |
+| `EMBEDDING_BACKEND` | no | Default `onnx`. Legacy `torch` requires a separate image with `backend/requirements-torch.txt`. |
+| `EMBEDDING_MODEL_REVISION` | no | Pinned model commit; keep the runtime value aligned with the baked image. |
+| `EMBEDDING_ONNX_FILE` | no | Default `onnx/model_quint8_avx2.onnx`; changing it requires rebuilding the image. |
+| `EMBEDDING_CPU_THREADS` | no | Default `1`; avoid oversized CPU thread pools on shared instances. |
+| `EMBEDDING_BATCH_SIZE` | no | Default `4`; benchmark memory before increasing on a 512 MiB instance. |
+| `INDEXING_PROGRESS_INTERVAL_SECONDS` | no | Default `3`; final chunk count is always saved. |
 
 Frontend:
 
@@ -195,7 +201,7 @@ Frontend:
 
 1. `GET https://<backend>/health` returns `200`, `status: healthy`,
    `database_backend: supabase_pgvector`, `storage_backend: supabase_storage`,
-   `embedding_dimension: 384`.
+   `embedding_dimension: 384`, `embedding_backend: onnx`.
 2. Upload a two-page PDF from the deployed UI. Polling reaches `ready` with the
    expected page/chunk counts.
 3. Ask a question answered on page 1 and confirm the answer and Page 1 chip.
